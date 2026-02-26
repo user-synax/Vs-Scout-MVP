@@ -4,7 +4,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { COMPANIES } from "@/data/companies";
-import type { CompanyList, EnrichmentResult, SignalTimelineItem } from "@/lib/types";
+import type { Company, CompanyList, EnrichmentResult, SignalTimelineItem } from "@/lib/types";
 import { DEFAULT_FUND_THESIS } from "@/lib/thesis";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 
@@ -14,9 +14,15 @@ type NotesMap = Record<string, string>;
 export default function CompanyDetailPage() {
     const params = useParams<{ id: string }>();
     const router = useRouter();
+    const [customCompanies] = useLocalStorage<Company[]>("vc-custom-companies", []);
+    const allCompanies = useMemo(
+        () => [...COMPANIES, ...customCompanies],
+        [customCompanies],
+    );
+
     const company = useMemo(
-        () => COMPANIES.find((c) => c.id === params.id),
-        [params.id],
+        () => allCompanies.find((c) => c.id === params.id),
+        [allCompanies, params.id],
     );
 
     const [enrichments, setEnrichments] = useLocalStorage<EnrichmentMap>(

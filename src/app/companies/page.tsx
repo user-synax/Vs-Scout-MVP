@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { COMPANIES } from "@/data/companies";
-import type { FundingStage, ThesisTag } from "@/lib/types";
+import type { Company, FundingStage, ThesisTag } from "@/lib/types";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 const PAGE_SIZE = 10;
 
@@ -27,6 +28,13 @@ export default function CompaniesPage() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const [customCompanies, setCustomCompanies] = useLocalStorage<Company[]>(
+        "vc-custom-companies",
+        [],
+    );
+    const [customName, setCustomName] = useState("");
+    const [customWebsite, setCustomWebsite] = useState("");
+    const [customDescription, setCustomDescription] = useState("");
 
     const q = searchParams.get("q") ?? "";
     const stageParam = (searchParams.get("stage") as FundingStage | "Any" | null) ?? "Any";
@@ -40,10 +48,15 @@ export default function CompaniesPage() {
         [tagsParam],
     );
 
-    const industries = useMemo(
-        () => ["All", ...Array.from(new Set(COMPANIES.map((c) => c.industry))).sort()],
-        [],
+    const allCompanies = useMemo(
+        () => [...COMPANIES, ...customCompanies],
+        [customCompanies],
     );
+
+    const industries = useMemo(() => {
+        const fromData = allCompanies.map((c) => c.industry);
+        return ["All", ...Array.from(new Set(fromData)).sort()];
+    }, [allCompanies]);
 
     const setParam = (key: string, value: string | null) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -64,7 +77,7 @@ export default function CompaniesPage() {
     };
 
     const filtered = useMemo(() => {
-        return COMPANIES.filter((company) => {
+        return allCompanies.filter((company) => {
             if (stageParam !== "Any" && company.stage !== stageParam) return false;
             if (industryParam !== "All" && company.industry !== industryParam) return false;
             if (
@@ -102,16 +115,48 @@ export default function CompaniesPage() {
             }
             return 0;
         });
-    }, [industryParam, q, selectedTags, sort, stageParam]);
+    }, [allCompanies, industryParam, q, selectedTags, sort, stageParam]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
     const currentPage = Math.min(Math.max(page, 1), totalPages);
     const start = (currentPage - 1) * PAGE_SIZE;
     const pageItems = filtered.slice(start, start + PAGE_SIZE);
 
+    const handleAddCustom = (e: FormEvent) => {
+        e.preventDefault();
+        const name = customName.trim();
+        const website = customWebsite.trim();
+        if (!name || !website) return;
+
+        const idBase =
+            name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") ||
+            website.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+        const id = `custom-${idBase}-${Math.random().toString(36).slice(2, 6)}`;
+
+        const newCompany: Company = {
+            id,
+            name,
+            website: website.startsWith("http") ? website : `https://${website}`,
+            industry: "Custom",
+            stage: "Bootstrapped",
+            thesisTags: [],
+            location: "Unknown",
+            description:
+                customDescription.trim() ||
+                "Custom website added manually for on-the-fly enrichment.",
+        };
+
+        setCustomCompanies([...customCompanies, newCompany]);
+        setCustomName("");
+        setCustomWebsite("");
+        setCustomDescription("");
+        router.push(`/companies/${id}`);
+    };
+
     return (
         <div className="space-y-6">
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
                     <h1 className="text-xl font-semibold tracking-tight text-slate-50">
                         Companies
@@ -121,12 +166,53 @@ export default function CompaniesPage() {
                         search combine into a reusable workflow.
                     </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
+                <div className="flex items-center justify-between gap-2 text-xs text-slate-500 md:justify-end">
                     <span className="rounded-full border border-slate-700 bg-slate-900/60 px-2 py-1">
                         {filtered.length} results
                     </span>
                 </div>
             </div>
+
+            <section className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-xs md:p-4">
+                <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                        Quick custom website enrich
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                        Paste any startup URL to add it as a local-only company and run enrichment.
+                    </div>
+                </div>
+                <form
+                    onSubmit={handleAddCustom}
+                    className="flex flex-col gap-2 md:flex-row md:items-center"
+                >
+                    <input
+                        value={customName}
+                        onChange={(e) => setCustomName(e.target.value)}
+                        placeholder="Company name"
+                        className="w-full rounded-md border border-slate-800 bg-slate-950/80 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:border-sky-500/60 focus:outline-none focus:ring-1 focus:ring-sky-500/60 md:max-w-[180px]"
+                    />
+                    <input
+                        value={customWebsite}
+                        onChange={(e) => setCustomWebsite(e.target.value)}
+                        placeholder="https://example.com"
+                        className="w-full flex-1 rounded-md border border-slate-800 bg-slate-950/80 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:border-sky-500/60 focus:outline-none focus:ring-1 focus:ring-sky-500/60"
+                    />
+                    <textarea
+                        value={customDescription}
+                        onChange={(e) => setCustomDescription(e.target.value)}
+                        placeholder="Optional: short note on what this company does"
+                        rows={2}
+                        className="w-full rounded-md border border-slate-800 bg-slate-950/80 px-2 py-1.5 text-xs text-slate-100 placeholder:text-slate-600 focus:border-sky-500/60 focus:outline-none focus:ring-1 focus:ring-sky-500/60 md:max-w-xs"
+                    />
+                    <button
+                        type="submit"
+                        className="w-full rounded-md border border-emerald-500/80 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100 shadow-sm transition hover:border-emerald-400 hover:bg-emerald-500/20 md:w-auto"
+                    >
+                        Add &amp; enrich
+                    </button>
+                </form>
+            </section>
 
             <section className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3 md:p-4">
                 <div className="grid gap-3 text-xs md:grid-cols-4">
