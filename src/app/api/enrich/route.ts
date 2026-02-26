@@ -67,6 +67,9 @@ async function callLlmForEnrichment(input: {
     const prompt = `
 You are helping a venture fund understand whether a company fits its thesis.
 
+Fund thesis (for context, do NOT restate this verbatim):
+- ${DEFAULT_FUND_THESIS.name}: ${DEFAULT_FUND_THESIS.description}
+
 Company:
 - Name: ${input.name}
 - Existing description: ${input.description}
@@ -98,11 +101,13 @@ Use the website excerpt when available. If information is missing, fall back to 
                 {
                     role: "system",
                     content:
-                        "You structure company information for venture investors. Your outputs must be concise, concrete, and directly usable in a CRM.",
+                        "You structure company information for venture investors. Respond ONLY with a single valid JSON object that matches the requested schema. Be concise, concrete, and avoid marketing fluff.",
                 },
                 { role: "user", content: prompt },
             ],
+            response_format: { type: "json_object" },
             temperature: 0.2,
+            max_tokens: 700,
         }),
     });
 
