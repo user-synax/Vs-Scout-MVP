@@ -4,12 +4,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { COMPANIES } from "@/data/companies";
-import type {
-    Company,
-    CompanyList,
-    EnrichmentResult,
-    SignalTimelineItem,
-} from "@/lib/types";
+import type { CompanyList, EnrichmentResult, SignalTimelineItem } from "@/lib/types";
 import { DEFAULT_FUND_THESIS } from "@/lib/thesis";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 
@@ -35,45 +30,8 @@ export default function CompanyDetailPage() {
     const [isEnriching, setIsEnriching] = useState(false);
     const [enrichError, setEnrichError] = useState<string | null>(null);
 
-    if (!company) {
-        return (
-            <div className="space-y-4">
-                <button
-                    type="button"
-                    onClick={() => router.push("/companies")}
-                    className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-xs text-slate-300 hover:border-slate-500"
-                >
-                    ← Back to companies
-                </button>
-                <div className="rounded-lg border border-red-900/60 bg-red-950/30 p-4 text-sm text-red-200">
-                    Company not found in the current universe.
-                </div>
-            </div>
-        );
-    }
-
-    const notes = notesMap[company.id] ?? "";
-
-    const inLists = lists.filter((list) =>
-        list.companyIds.includes(company.id),
-    );
-
-    const toggleInList = (list: CompanyList) => {
-        setLists(
-            lists.map((l) =>
-                l.id === list.id
-                    ? {
-                          ...l,
-                          companyIds: l.companyIds.includes(company.id)
-                              ? l.companyIds.filter((id) => id !== company.id)
-                              : [...l.companyIds, company.id],
-                      }
-                    : l,
-            ),
-        );
-    };
-
     const timeline: SignalTimelineItem[] = useMemo(() => {
+        if (!company) return [];
         const items: SignalTimelineItem[] = [];
         if (company.lastFundingRound?.date) {
             items.push({
@@ -102,7 +60,47 @@ export default function CompanyDetailPage() {
         return items.sort((a, b) => b.date.localeCompare(a.date));
     }, [company, enrichment]);
 
+    if (!company) {
+        return (
+            <div className="space-y-4">
+                <button
+                    type="button"
+                    onClick={() => router.push("/companies")}
+                    className="rounded-md border border-slate-700 bg-slate-950/70 px-2 py-1 text-xs text-slate-300 hover:border-slate-500"
+                >
+                    ← Back to companies
+                </button>
+                <div className="rounded-lg border border-red-900/60 bg-red-950/30 p-4 text-sm text-red-200">
+                    Company not found in the current universe.
+                </div>
+            </div>
+        );
+    }
+
+    // At this point `company` is guaranteed to be non-null.
+    const notes = notesMap[company.id] ?? "";
+
+    const inLists = lists.filter((list) =>
+        list.companyIds.includes(company.id),
+    );
+
+    const toggleInList = (list: CompanyList) => {
+        setLists(
+            lists.map((l) =>
+                l.id === list.id
+                    ? {
+                          ...l,
+                          companyIds: l.companyIds.includes(company.id)
+                              ? l.companyIds.filter((id) => id !== company.id)
+                              : [...l.companyIds, company.id],
+                      }
+                    : l,
+            ),
+        );
+    };
+
     async function handleEnrich() {
+        const safeCompany = company as NonNullable<typeof company>;
         setIsEnriching(true);
         setEnrichError(null);
         try {
@@ -112,10 +110,10 @@ export default function CompanyDetailPage() {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    companyId: company.id,
-                    website: company.website,
-                    name: company.name,
-                    description: company.description,
+                    companyId: safeCompany.id,
+                    website: safeCompany.website,
+                    name: safeCompany.name,
+                    description: safeCompany.description,
                 }),
             });
             if (!res.ok) {
@@ -125,7 +123,7 @@ export default function CompanyDetailPage() {
             const data = (await res.json()) as { enrichment: EnrichmentResult };
             setEnrichments({
                 ...enrichments,
-                [company.id]: data.enrichment,
+                [safeCompany.id]: data.enrichment,
             });
         } catch (err: unknown) {
             setEnrichError(
