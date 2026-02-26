@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
@@ -26,7 +27,9 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-                <AppShell>{children}</AppShell>
+                <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+                    <AppShell>{children}</AppShell>
+                </Suspense>
             </body>
         </html>
     );
